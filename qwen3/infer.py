@@ -57,15 +57,15 @@ def test_once(model, encoded_input, attn_impl=""):
 
 
 def test():
-    model, encoded_input = init_model(False)
+    model, encoded_input = init_model(True)
     test_once(model, encoded_input, attn_impl="eager")
     del model, encoded_input
 
-    model, encoded_input = init_model(True)
+    model, encoded_input = init_model(False)
     test_once(model, encoded_input, attn_impl="custom")
     del model, encoded_input
 
-    model, encoded_input = init_model(False)
+    model, encoded_input = init_model(True)
     test_once(model, encoded_input, attn_impl="eager")
     del model, encoded_input
 
