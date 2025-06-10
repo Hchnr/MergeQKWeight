@@ -49,7 +49,7 @@ from transformers.utils import (
     replace_return_docstrings,
 )
 from .configuration_internlm3 import InternLM3Config
-import math
+
 
 logger = logging.get_logger(__name__)
 
