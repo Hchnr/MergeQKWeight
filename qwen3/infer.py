@@ -52,9 +52,8 @@ def test_once(model, encoded_input, attn_impl=""):
     print(f"Time Elapsed: {time_elapsed}s")
     print(f"Throughput(input):  {input_len/time_elapsed} tokens/s")
     print(f"Throughput(output): {output_len/time_elapsed} tokens/s")
-    import pdb
 
-    pdb.set_trace()  # noqa: E999
+    print(output)
 
 
 def test():

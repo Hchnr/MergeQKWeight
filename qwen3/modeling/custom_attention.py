@@ -62,7 +62,7 @@ def custom_attention_forward(
     dropout: float = 0.0,
     **kwargs,
 ):
-    x_states = repeat_kv(x_states, module.num_key_value_groups)
+    qk_states = repeat_kv(qk_states, module.num_key_value_groups)
     value_states = repeat_kv(value, module.num_key_value_groups)
     # x_states:     torch.Size([1, 32, 513, 128])
     # qk_states:    torch.Size([1, 32, 513, 128])
@@ -152,13 +152,13 @@ class Qwen3AttentionCustom(nn.Module):
         qk_states = self.qk_norm(
             self.qk_proj(hidden_states).view(hidden_shape)
         ).transpose(1, 2)
-        # x_states:      torch.Size([1, 8, 513, 128])
+        # x_states:      torch.Size([1, 32, 513, 128])
         x_states = hidden_states.view(hidden_shape).transpose(1, 2)
         # value_states:  torch.Size([1, 8, 513, 128])
         value_states = self.v_proj(hidden_states).view(hidden_shape).transpose(1, 2)
         # cos:           torch.Size([1, 513, 128])
         cos, sin = position_embeddings
-        qk_states, x_states = apply_rotary_pos_emb(x_states, qk_states, cos, sin)
+        x_states, qk_states = apply_rotary_pos_emb(x_states, qk_states, cos, sin)
 
         if past_key_value is not None:
             # sin and cos are specific to RoPE models; cache_position needed for the static cache

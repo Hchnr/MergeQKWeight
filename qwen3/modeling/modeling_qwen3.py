@@ -161,9 +161,6 @@ def eager_attention_forward(
     dropout: float = 0.0,
     **kwargs,
 ):
-    import pdb
-
-    pdb.set_trace()
     key_states = repeat_kv(key, module.num_key_value_groups)
     value_states = repeat_kv(value, module.num_key_value_groups)
 
