@@ -102,17 +102,16 @@ class Qwen2AttentionCustom(nn.Module):
         self.scaling = self.head_dim**-0.5
         self.attention_dropout = config.attention_dropout
         self.is_causal = True
-        self.q_proj = nn.Linear(
-            config.hidden_size, config.num_attention_heads * self.head_dim, bias=True
-        )
-        self.k_proj = nn.Linear(
-            config.hidden_size, config.num_key_value_heads * self.head_dim, bias=True
-        )
         self.v_proj = nn.Linear(
             config.hidden_size, config.num_key_value_heads * self.head_dim, bias=True
         )
         self.o_proj = nn.Linear(
             config.num_attention_heads * self.head_dim, config.hidden_size, bias=False
+        )
+
+        # QK Weights Merge
+        self.qk_proj = nn.Linear(
+            config.hidden_size, config.num_key_value_heads * self.head_dim, bias=True
         )
 
     def forward(
@@ -127,20 +126,19 @@ class Qwen2AttentionCustom(nn.Module):
         input_shape = hidden_states.shape[:-1]
         hidden_shape = (*input_shape, -1, self.head_dim)
 
-        query_states = self.q_proj(hidden_states).view(hidden_shape).transpose(1, 2)
-        key_states = self.k_proj(hidden_states).view(hidden_shape).transpose(1, 2)
+        qk_states = self.qk_proj(hidden_states).view(hidden_shape).transpose(1, 2)
+        x_states = hidden_states.view(hidden_shape).transpose(1, 2)
+
         value_states = self.v_proj(hidden_states).view(hidden_shape).transpose(1, 2)
 
         cos, sin = position_embeddings
-        query_states, key_states = apply_rotary_pos_emb(
-            query_states, key_states, cos, sin
-        )
+        x_states, qk_states = apply_rotary_pos_emb(x_states, qk_states, cos, sin)
 
         if past_key_value is not None:
             # sin and cos are specific to RoPE models; cache_position needed for the static cache
             cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}
-            key_states, value_states = past_key_value.update(
-                key_states, value_states, self.layer_idx, cache_kwargs
+            x_states, qk_states = past_key_value.update(
+                x_states, qk_states, self.layer_idx, cache_kwargs
             )
 
         sliding_window = None
@@ -152,6 +150,8 @@ class Qwen2AttentionCustom(nn.Module):
             sliding_window = self.config.sliding_window
 
         attention_interface: Callable = eager_attention_forward
+        attention_interface: Callable = custom_attention_forward
+        """
         if self.config._attn_implementation != "eager":
             if self.config._attn_implementation == "sdpa" and kwargs.get(
                 "output_attentions", False
@@ -164,11 +164,11 @@ class Qwen2AttentionCustom(nn.Module):
                 attention_interface = ALL_ATTENTION_FUNCTIONS[
                     self.config._attn_implementation
                 ]
-
+        """
         attn_output, attn_weights = attention_interface(
             self,
-            query_states,
-            key_states,
+            x_states,
+            qk_states,
             value_states,
             attention_mask,
             dropout=0.0 if not self.training else self.attention_dropout,
