@@ -54,18 +54,21 @@ def test_once(model, encoded_input, attn_impl=""):
     print(f"Throughput(input):  {input_len/time_elapsed} tokens/s")
     print(f"Throughput(output): {output_len/time_elapsed} tokens/s")
     print("output.last_hidden_state: ", output.last_hidden_state)
+    import pdb
+
+    pdb.set_trace()  # noqa: E999
 
 
 def test():
-    model, encoded_input = init_model(False)
+    model, encoded_input = init_model(True)
     test_once(model, encoded_input, attn_impl="eager")
     del model, encoded_input
 
-    model, encoded_input = init_model(True)
+    model, encoded_input = init_model(False)
     test_once(model, encoded_input, attn_impl="custom")
     del model, encoded_input
 
-    model, encoded_input = init_model(False)
+    model, encoded_input = init_model(True)
     test_once(model, encoded_input, attn_impl="eager")
     del model, encoded_input
 

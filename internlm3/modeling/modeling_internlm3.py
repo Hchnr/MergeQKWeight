@@ -336,6 +336,9 @@ class InternLM3Attention(nn.Module):
         ] = None,  # will become mandatory in v4.46
         **kwargs,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
+        import pdb
+
+        pdb.set_trace()
         bsz, q_len, _ = hidden_states.size()
 
         query_states = self.q_proj(hidden_states)
