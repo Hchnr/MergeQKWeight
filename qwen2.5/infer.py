@@ -15,8 +15,7 @@ np.random.seed(seed)
 torch.manual_seed(seed)
 
 # MODEL_PATH = "/share/project/hcr/models/openai-community/gpt2"
-MODEL_PATH = "/share/project/hcr/models/Qwen/Qwen3-8B"
-# MODEL_PATH = "/share/project/hcr/models/Qwen/Qwen3-0.6B"
+MODEL_PATH = "/share/project/hcr/models/Qwen/Qwen2.5-7B-Instruct"
 NUM_PROMPTS = 128
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
