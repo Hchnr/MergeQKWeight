@@ -152,18 +152,20 @@ class InternLM3AttentionCustom(nn.Module):
         ] = None,  # will become mandatory in v4.46
         **kwargs,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
-        import pdb
-
-        pdb.set_trace()
+        # hidden_states:             [1, 641, 4096]
         bsz, q_len, _ = hidden_states.size()
 
         qk_states = self.qk_proj(hidden_states)
         value_states = self.v_proj(hidden_states)
+        # qk_states,value_states:    [1, 641, 256]
 
         # use -1 to infer num_heads and num_key_value_heads as they may vary if tensor parallel is used
         x_states = hidden_states.view(bsz, q_len, -1, self.head_dim).transpose(1, 2)
         qk_states = qk_states.view(bsz, q_len, -1, self.head_dim).transpose(1, 2)
         value_states = value_states.view(bsz, q_len, -1, self.head_dim).transpose(1, 2)
+        # x_states:                  [1, 32, 641, 128]
+        # qk_states,value_states:    [1, 2, 641, 128]
+        # position_embeddings:       [1, 641, 128] tuple(2)
 
         if position_embeddings is None:
             logger.warning_once(
@@ -175,33 +177,44 @@ class InternLM3AttentionCustom(nn.Module):
             cos, sin = self.rotary_emb(value_states, position_ids)
         else:
             cos, sin = position_embeddings
+            # cos,sin:                [1, 641, 128]
         x_states, qk_states = apply_rotary_pos_emb(x_states, qk_states, cos, sin)
-
+        # query_states:               [1, 32, 641, 128]
+        # key_states,value_states:    [1, 2, 641, 128]
         if past_key_value is not None:
             # sin and cos are specific to RoPE models; cache_position needed for the static cache
             cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}
-            x_states, qk_states = past_key_value.update(
-                x_states, qk_states, self.layer_idx, cache_kwargs
+            qk_states, value_states = past_key_value.update(
+                qk_states, value_states, self.layer_idx, cache_kwargs
             )
+            # key_states,value_states:    [1, 2, 641, 128]
 
         qk_states = repeat_kv(qk_states, self.num_key_value_groups)
         value_states = repeat_kv(value_states, self.num_key_value_groups)
+        # qk_states,value_states:      [1, 32, 641, 128]
+        # self.num_key_value_groups:   16
         attn_weights = torch.matmul(x_states, qk_states.transpose(2, 3)) / math.sqrt(
             self.head_dim
         )
+        # attn_weights:                [1, 32, 641, 641]
 
         if attention_mask is not None:  # no matter the length, we just slice it
+            # attention_mask: [1, 1, 641, 641]
             causal_mask = attention_mask[:, :, :, : qk_states.shape[-2]]
             attn_weights = attn_weights + causal_mask
+            # causal_mask:    [1, 1, 641, 641]
 
         # upcast attention to fp32
         attn_weights = nn.functional.softmax(
             attn_weights, dim=-1, dtype=torch.float32
         ).to(x_states.dtype)
+        # attn_weights:       [1, 32, 641, 641]
         attn_weights = nn.functional.dropout(
             attn_weights, p=self.attention_dropout, training=self.training
         )
+        # attn_weights:       [1, 32, 641, 641]
         attn_output = torch.matmul(attn_weights, value_states)
+        # attn_output:        [1, 32, 641, 128]
 
         if attn_output.size() != (bsz, self.num_heads, q_len, self.head_dim):
             raise ValueError(
@@ -210,10 +223,11 @@ class InternLM3AttentionCustom(nn.Module):
             )
 
         attn_output = attn_output.transpose(1, 2).contiguous()
-
+        # attn_output:        [1, 641, 32, 128]
         attn_output = attn_output.reshape(bsz, q_len, -1)
-
+        # attn_output:        [1, 641, 4096]
         attn_output = self.o_proj(attn_output)
+        # attn_output:        [1, 641, 4096]
 
         if not output_attentions:
             attn_weights = None
