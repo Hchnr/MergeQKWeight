@@ -10,9 +10,7 @@ from transformers.models.qwen3.modeling_qwen3 import (
 from transformers.models.qwen3.modeling_qwen3 import (
     eager_attention_forward,
 )  # Add the missing import
-from transformers.models.qwen3.modeling_qwen3 import (
-    FlashAttentionKwargs,
-    Qwen3RMSNorm,
+from .modeling_internlm3 import (
     apply_rotary_pos_emb,
     repeat_kv,
 )
@@ -116,14 +114,6 @@ class InternLM3AttentionCustom(nn.Module):
         self.rope_theta = config.rope_theta
         self.is_causal = True
 
-        self.q_proj = nn.Linear(
-            self.hidden_size, self.num_heads * self.head_dim, bias=config.qkv_bias
-        )
-        self.k_proj = nn.Linear(
-            self.hidden_size,
-            self.num_key_value_heads * self.head_dim,
-            bias=config.qkv_bias,
-        )
         self.v_proj = nn.Linear(
             self.hidden_size,
             self.num_key_value_heads * self.head_dim,
@@ -135,6 +125,18 @@ class InternLM3AttentionCustom(nn.Module):
 
         # TODO (joao): remove in v4.46 (RoPE is computed in the model, not in the decoder layers)
         self.rotary_emb = InternLM3RotaryEmbedding(config=self.config)
+
+        # QK Weights Merge
+        if config.qkv_bias:
+            raise ValueError(
+                "The `qkv_bias` argument is not supported in QK merge. "
+                "Please set `qkv_bias=False` in the configuration."
+            )
+        self.qk_proj = nn.Linear(
+            self.hidden_size,
+            self.num_key_value_heads * self.head_dim,
+            bias=config.qkv_bias,
+        )
 
     def forward(
         self,
@@ -152,13 +154,12 @@ class InternLM3AttentionCustom(nn.Module):
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         bsz, q_len, _ = hidden_states.size()
 
-        query_states = self.q_proj(hidden_states)
-        key_states = self.k_proj(hidden_states)
+        qk_states = self.qk_proj(hidden_states)
         value_states = self.v_proj(hidden_states)
 
         # use -1 to infer num_heads and num_key_value_heads as they may vary if tensor parallel is used
-        query_states = query_states.view(bsz, q_len, -1, self.head_dim).transpose(1, 2)
-        key_states = key_states.view(bsz, q_len, -1, self.head_dim).transpose(1, 2)
+        x_states = hidden_states.view(bsz, q_len, -1, self.head_dim).transpose(1, 2)
+        qk_states = qk_states.view(bsz, q_len, -1, self.head_dim).transpose(1, 2)
         value_states = value_states.view(bsz, q_len, -1, self.head_dim).transpose(1, 2)
 
         if position_embeddings is None:
@@ -171,31 +172,29 @@ class InternLM3AttentionCustom(nn.Module):
             cos, sin = self.rotary_emb(value_states, position_ids)
         else:
             cos, sin = position_embeddings
-        query_states, key_states = apply_rotary_pos_emb(
-            query_states, key_states, cos, sin
-        )
+        x_states, qk_states = apply_rotary_pos_emb(x_states, qk_states, cos, sin)
 
         if past_key_value is not None:
             # sin and cos are specific to RoPE models; cache_position needed for the static cache
             cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}
-            key_states, value_states = past_key_value.update(
-                key_states, value_states, self.layer_idx, cache_kwargs
+            x_states, qk_states = past_key_value.update(
+                x_states, qk_states, self.layer_idx, cache_kwargs
             )
 
-        key_states = repeat_kv(key_states, self.num_key_value_groups)
+        x_states = repeat_kv(x_states, self.num_key_value_groups)
         value_states = repeat_kv(value_states, self.num_key_value_groups)
-        attn_weights = torch.matmul(
-            query_states, key_states.transpose(2, 3)
-        ) / math.sqrt(self.head_dim)
+        attn_weights = torch.matmul(x_states, qk_states.transpose(2, 3)) / math.sqrt(
+            self.head_dim
+        )
 
         if attention_mask is not None:  # no matter the length, we just slice it
-            causal_mask = attention_mask[:, :, :, : key_states.shape[-2]]
+            causal_mask = attention_mask[:, :, :, : qk_states.shape[-2]]
             attn_weights = attn_weights + causal_mask
 
         # upcast attention to fp32
         attn_weights = nn.functional.softmax(
             attn_weights, dim=-1, dtype=torch.float32
-        ).to(query_states.dtype)
+        ).to(x_states.dtype)
         attn_weights = nn.functional.dropout(
             attn_weights, p=self.attention_dropout, training=self.training
         )

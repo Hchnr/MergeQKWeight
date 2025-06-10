@@ -6,7 +6,7 @@ import torch
 import tqdm
 from transformers import AutoModel, AutoTokenizer
 
-from modeling.custom_attention import Qwen3AttentionCustom, trans
+from modeling.custom_attention import InternLM3AttentionCustom, trans
 from modeling.modeling_internlm3 import InternLM3Model
 
 seed = 42
@@ -21,8 +21,8 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def init_model(custom_attn=False):
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
-    model = InternLM3Model.from_pretrained(MODEL_PATH)
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH, trust_remote_code=True)
+    model = InternLM3Model.from_pretrained(MODEL_PATH, trust_remote_code=True)
     if custom_attn:
         model = trans(model)
     model.to(DEVICE)
@@ -51,6 +51,7 @@ def test_once(model, encoded_input, attn_impl=""):
     print(f"Time Elapsed: {time_elapsed}s")
     print(f"Throughput(input):  {input_len/time_elapsed} tokens/s")
     print(f"Throughput(output): {output_len/time_elapsed} tokens/s")
+    print("output.last_hidden_state: ", output.last_hidden_state)
     import pdb
 
     pdb.set_trace()  # noqa: E999
