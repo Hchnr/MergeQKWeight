@@ -6,7 +6,7 @@ import torch
 import tqdm
 from transformers import AutoModel, AutoTokenizer
 
-from modeling.custom_attention import Qwen3AttentionCustom, trans
+from modeling.custom_attention import Qwen2AttentionCustom, trans
 from modeling.modeling_qwen2 import Qwen2Model
 
 seed = 42
@@ -23,8 +23,9 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 def init_model(custom_attn=False):
     tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
     model = Qwen2Model.from_pretrained(MODEL_PATH)
-    # if custom_attn:
-    # model = trans(model)
+
+    if custom_attn:
+        model = trans(model)
     model.to(DEVICE)
     model.eval()
 
@@ -57,15 +58,15 @@ def test_once(model, encoded_input, attn_impl=""):
 
 
 def test():
-    model, encoded_input = init_model(False)
+    model, encoded_input = init_model(True)
     test_once(model, encoded_input, attn_impl="eager")
     del model, encoded_input
 
-    model, encoded_input = init_model(True)
+    model, encoded_input = init_model(False)
     test_once(model, encoded_input, attn_impl="custom")
     del model, encoded_input
 
-    model, encoded_input = init_model(False)
+    model, encoded_input = init_model(True)
     test_once(model, encoded_input, attn_impl="eager")
     del model, encoded_input
 
