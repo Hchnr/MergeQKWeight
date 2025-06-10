@@ -1,12 +1,13 @@
 from typing import Callable, Optional, Tuple
 from transformers.processing_utils import Unpack
 import torch
-from transformers.models.qwen3.modeling_qwen3 import Qwen3Model, Qwen3Config
-from transformers.models.qwen3.modeling_qwen3 import (
+from transformers.models.qwen2.modeling_qwen2 import (
     FlashAttentionKwargs,
     apply_rotary_pos_emb,
     eager_attention_forward,  # Add the missing import
     ALL_ATTENTION_FUNCTIONS,  # Import ALL_ATTENTION_FUNCTIONS
+    Qwen2Model,
+    Qwen2Config,
 )
 import torch.nn as nn
 from transformers.models.qwen3.modeling_qwen3 import Qwen3RMSNorm
@@ -18,7 +19,7 @@ from transformers.models.qwen3.modeling_qwen3 import repeat_kv
 logger = logging.get_logger(__name__)
 
 
-def trans(model: Qwen3Model):
+def trans(model: Qwen2Model):
     for layer_i, layer in enumerate(model.layers):
         if not hasattr(layer, "self_attn"):
             raise ValueError(
@@ -85,10 +86,10 @@ def custom_attention_forward(
     return attn_output, attn_weights
 
 
-class Qwen3AttentionCustom(nn.Module):
+class Qwen2AttentionCustom(nn.Module):
     """Multi-headed attention from 'Attention Is All You Need' paper"""
 
-    def __init__(self, config: Qwen3Config, layer_idx: int):
+    def __init__(self, config: Qwen2Config, layer_idx: int):
         super().__init__()
         self.config = config
         self.layer_idx = layer_idx
@@ -101,38 +102,18 @@ class Qwen3AttentionCustom(nn.Module):
         self.scaling = self.head_dim**-0.5
         self.attention_dropout = config.attention_dropout
         self.is_causal = True
-
+        self.q_proj = nn.Linear(
+            config.hidden_size, config.num_attention_heads * self.head_dim, bias=True
+        )
+        self.k_proj = nn.Linear(
+            config.hidden_size, config.num_key_value_heads * self.head_dim, bias=True
+        )
         self.v_proj = nn.Linear(
-            config.hidden_size,
-            config.num_key_value_heads * self.head_dim,
-            bias=config.attention_bias,
+            config.hidden_size, config.num_key_value_heads * self.head_dim, bias=True
         )
         self.o_proj = nn.Linear(
-            config.num_attention_heads * self.head_dim,
-            config.hidden_size,
-            bias=config.attention_bias,
+            config.num_attention_heads * self.head_dim, config.hidden_size, bias=False
         )
-        self.q_norm = Qwen3RMSNorm(
-            self.head_dim, eps=config.rms_norm_eps
-        )  # unlike olmo, only on the head dim!
-        self.k_norm = Qwen3RMSNorm(
-            self.head_dim, eps=config.rms_norm_eps
-        )  # thus post q_norm does not need reshape
-        self.sliding_window = config.sliding_window
-        if not (
-            self.config.use_sliding_window
-            and getattr(self.config, "sliding_window", None) is not None
-            and self.layer_idx >= self.config.max_window_layers
-        ):
-            self.sliding_window = None
-
-        # QK Weights Merge
-        self.qk_proj = nn.Linear(
-            config.hidden_size,
-            config.num_key_value_heads * self.head_dim,
-            bias=config.attention_bias,
-        )
-        self.qk_norm = Qwen3RMSNorm(self.head_dim, eps=config.rms_norm_eps)
 
     def forward(
         self,
@@ -144,32 +125,33 @@ class Qwen3AttentionCustom(nn.Module):
         **kwargs: Unpack[FlashAttentionKwargs],
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         input_shape = hidden_states.shape[:-1]
-        # hidden_shape: (1, 513, -1, 128)
         hidden_shape = (*input_shape, -1, self.head_dim)
 
-        # hidden_states: torch.Size([1, 513, 4096])
-        # qk_states:     torch.Size([1, 8, 513, 128])
-        qk_states = self.qk_norm(
-            self.qk_proj(hidden_states).view(hidden_shape)
-        ).transpose(1, 2)
-        # x_states:      torch.Size([1, 8, 513, 128])
-        x_states = hidden_states.view(hidden_shape).transpose(1, 2)
-        # value_states:  torch.Size([1, 8, 513, 128])
+        query_states = self.q_proj(hidden_states).view(hidden_shape).transpose(1, 2)
+        key_states = self.k_proj(hidden_states).view(hidden_shape).transpose(1, 2)
         value_states = self.v_proj(hidden_states).view(hidden_shape).transpose(1, 2)
-        # cos:           torch.Size([1, 513, 128])
+
         cos, sin = position_embeddings
-        qk_states, x_states = apply_rotary_pos_emb(x_states, qk_states, cos, sin)
+        query_states, key_states = apply_rotary_pos_emb(
+            query_states, key_states, cos, sin
+        )
 
         if past_key_value is not None:
             # sin and cos are specific to RoPE models; cache_position needed for the static cache
             cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}
-            qk_states, value_states = past_key_value.update(
-                qk_states, value_states, self.layer_idx, cache_kwargs
+            key_states, value_states = past_key_value.update(
+                key_states, value_states, self.layer_idx, cache_kwargs
             )
 
+        sliding_window = None
+        if (
+            self.config.use_sliding_window
+            and getattr(self.config, "sliding_window", None) is not None
+            and self.layer_idx >= self.config.max_window_layers
+        ):
+            sliding_window = self.config.sliding_window
+
         attention_interface: Callable = eager_attention_forward
-        attention_interface: Callable = custom_attention_forward
-        """
         if self.config._attn_implementation != "eager":
             if self.config._attn_implementation == "sdpa" and kwargs.get(
                 "output_attentions", False
@@ -182,17 +164,16 @@ class Qwen3AttentionCustom(nn.Module):
                 attention_interface = ALL_ATTENTION_FUNCTIONS[
                     self.config._attn_implementation
                 ]
-        """
 
         attn_output, attn_weights = attention_interface(
             self,
-            x_states,
-            qk_states,  # Use qk_states instead of query_states
+            query_states,
+            key_states,
             value_states,
             attention_mask,
             dropout=0.0 if not self.training else self.attention_dropout,
             scaling=self.scaling,
-            sliding_window=self.sliding_window,  # diff with Llama
+            sliding_window=sliding_window,  # main diff with Llama
             **kwargs,
         )
 
@@ -205,8 +186,8 @@ if __name__ == "__main__":
     # Example usage
     BATCH_SIZE = 1
     SEQ_LENGTH = 10
-    MODEL_PATH = "/share/project/hcr/models/Qwen/Qwen3-8B"
-    config = Qwen3Config.from_json_file(f"{MODEL_PATH}/config.json")
+    MODEL_PATH = "/share/project/hcr/models/Qwen/Qwen2-7B-Instruct"
+    config = Qwen2Config.from_json_file(f"{MODEL_PATH}/config.json")
     attention_layer = Qwen3AttentionCustom(config, layer_idx=0)
     input = torch.randn(BATCH_SIZE, 10, config.hidden_size)
     output = attention_layer(input)

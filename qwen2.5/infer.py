@@ -75,14 +75,8 @@ if __name__ == "__main__":
 
 # =========================================
 # 8B model - RAW
-# time elapsed: 51.14429569244385s
-# throughput: 5135.587389441855 tokens/s
+# Time Elapsed: 11.29983925819397s
+# Throughput(input):  5811.056113243769 tokens/s
+# Throughput(output): 5811.056113243769 tokens/s
 
 # 8B model - MergeQK
-# time elapsed: 48.8771870136261s
-# throughput: 5373.7953439664225 tokens/s
-
-# =========================================
-# 0.6B model
-# time elapsed: 11.499852418899536s
-# throughput: 22839.9452821095 tokens/s
