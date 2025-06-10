@@ -181,7 +181,7 @@ class InternLM3AttentionCustom(nn.Module):
                 x_states, qk_states, self.layer_idx, cache_kwargs
             )
 
-        x_states = repeat_kv(x_states, self.num_key_value_groups)
+        qk_states = repeat_kv(qk_states, self.num_key_value_groups)
         value_states = repeat_kv(value_states, self.num_key_value_groups)
         attn_weights = torch.matmul(x_states, qk_states.transpose(2, 3)) / math.sqrt(
             self.head_dim
