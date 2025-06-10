@@ -7,7 +7,7 @@ import tqdm
 from transformers import AutoModel, AutoTokenizer
 
 from modeling.custom_attention import Qwen3AttentionCustom, trans
-from modeling.modeling_qwen3 import Qwen3Model
+from modeling.modeling_qwen2 import Qwen2Model
 
 seed = 42
 random.seed(seed)
@@ -22,9 +22,9 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def init_model(custom_attn=False):
     tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
-    model = Qwen3Model.from_pretrained(MODEL_PATH)
-    if custom_attn:
-        model = trans(model)
+    model = Qwen2Model.from_pretrained(MODEL_PATH)
+    # if custom_attn:
+    # model = trans(model)
     model.to(DEVICE)
     model.eval()
 
