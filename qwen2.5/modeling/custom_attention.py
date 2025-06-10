@@ -10,11 +10,11 @@ from transformers.models.qwen2.modeling_qwen2 import (
     Qwen2Config,
 )
 import torch.nn as nn
-from transformers.models.qwen3.modeling_qwen3 import Qwen3RMSNorm
+from transformers.models.qwen2.modeling_qwen2 import Qwen2RMSNorm
 from transformers.cache_utils import Cache
 from transformers.utils import logging
 
-from transformers.models.qwen3.modeling_qwen3 import repeat_kv
+from transformers.models.qwen2.modeling_qwen2 import repeat_kv
 
 logger = logging.get_logger(__name__)
 
@@ -31,7 +31,7 @@ def trans(model: Qwen2Model):
                 "The self_attn does not have the expected 'q_proj' and 'k_proj' attributes."
             )
 
-        new_attn = Qwen3AttentionCustom(model.config, layer_idx=layer_i)
+        new_attn = Qwen2AttentionCustom(model.config, layer_idx=layer_i)
 
         # wq:[4096,4096], wk:[1024,4096], wqk:[1024,4096]
         # Linear:[out_features, in_features]
@@ -48,7 +48,7 @@ def trans(model: Qwen2Model):
         new_attn.load_state_dict(new_attn_dict)
         model.layers[layer_i].self_attn = new_attn
 
-    print(f"Attn transformed to Qwen3AttentionCustom")
+    print(f"Attn transformed to Qwen2AttentionCustom")
     model.eval()
     return model
 
@@ -188,7 +188,7 @@ if __name__ == "__main__":
     SEQ_LENGTH = 10
     MODEL_PATH = "/share/project/hcr/models/Qwen/Qwen2-7B-Instruct"
     config = Qwen2Config.from_json_file(f"{MODEL_PATH}/config.json")
-    attention_layer = Qwen3AttentionCustom(config, layer_idx=0)
+    attention_layer = Qwen2AttentionCustom(config, layer_idx=0)
     input = torch.randn(BATCH_SIZE, 10, config.hidden_size)
     output = attention_layer(input)
     print(attention_layer)
