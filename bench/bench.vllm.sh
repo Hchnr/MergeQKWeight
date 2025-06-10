@@ -1,0 +1,2 @@
+CUDA_VISIBLE_DEVICES=0 vllm bench throughput --model /share/project/hcr/models/Qwen/Qwen3-8B --input-len 512 --output-len 128 --num-prompts 512 --dataset-name random
+# Throughput: 19.07 requests/s, 12818.74 total tokens/s, 2441.37 output tokens/s

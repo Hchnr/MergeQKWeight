@@ -1,0 +1,24 @@
+[RANK-PROCESS-0][[36m2025-06-08 13:50:24,958[0m][[34mtorchrun[0m][[32mINFO[0m] - 	+ Setting torch.distributed cuda device to 0[0m
+[RANK-PROCESS-0][[36m2025-06-08 13:50:25,020[0m][[34mtorchrun[0m][[32mINFO[0m] - 	+ Initializing torch.distributed process group[0m
+[RANK-PROCESS-0][[36m2025-06-08 13:50:25,090[0m][[34mdatasets[0m][[32mINFO[0m] - PyTorch version 2.6.0 available.[0m
+[RANK-PROCESS-0][[36m2025-06-08 13:50:27,024[0m][[34mpytorch[0m][[32mINFO[0m] - Allocating pytorch backend[0m
+[RANK-PROCESS-0][[36m2025-06-08 13:50:27,025[0m][[34mpytorch[0m][[32mINFO[0m] - 	+ Seeding backend with 42[0m
+[RANK-PROCESS-0][[36m2025-06-08 13:50:27,028[0m][[34mpytorch[0m][[32mINFO[0m] - 	+ Benchmarking a Transformers model[0m
+[RANK-PROCESS-0][[36m2025-06-08 13:50:27,388[0m][[34minference[0m][[32mINFO[0m] - Allocating inference scenario[0m
+[RANK-PROCESS-0][[36m2025-06-08 13:50:27,388[0m][[34minference[0m][[32mINFO[0m] - 	+ Updating Text Generation kwargs with default values[0m
+[RANK-PROCESS-0][[36m2025-06-08 13:50:27,388[0m][[34minference[0m][[32mINFO[0m] - 	+ Initializing Text Generation targets list[0m
+[RANK-PROCESS-0][[36m2025-06-08 13:50:27,389[0m][[34minference[0m][[32mINFO[0m] - 	+ Initializing Latency tracker[0m
+[RANK-PROCESS-0][[36m2025-06-08 13:50:27,389[0m][[34mlatency[0m][[32mINFO[0m] - 		+ Tracking latency using Pytorch CUDA events[0m
+[RANK-PROCESS-0][[36m2025-06-08 13:50:27,389[0m][[34minference[0m][[32mINFO[0m] - 	+ Initializing Per-Token Latency tracker[0m
+[RANK-PROCESS-0][[36m2025-06-08 13:50:27,389[0m][[34mlatency[0m][[32mINFO[0m] - 		+ Tracking latency using Pytorch CUDA events[0m
+[RANK-PROCESS-0][[36m2025-06-08 13:50:27,389[0m][[34minference[0m][[32mINFO[0m] - 	+ Initializing Memory tracker[0m
+[RANK-PROCESS-0][[36m2025-06-08 13:50:27,390[0m][[34mmemory[0m][[32mINFO[0m] - 		+ Tracking RAM memory of process 2111294[0m
+[RANK-PROCESS-0][[36m2025-06-08 13:50:27,390[0m][[34mmemory[0m][[32mINFO[0m] - 		+ Tracking GPU memory of devices [0][0m
+[RANK-PROCESS-0][[36m2025-06-08 13:50:27,390[0m][[34mmemory[0m][[32mINFO[0m] - 		+ Tracking Allocated/Reserved memory of 1 Pytorch CUDA devices[0m
+[RANK-PROCESS-0][[36m2025-06-08 13:50:27,390[0m][[34minference[0m][[32mINFO[0m] - 	+ Generating inputs for task text-generation[0m
+[RANK-PROCESS-0][[36m2025-06-08 13:50:27,390[0m][[34mtorchrun[0m][[31mERROR[0m] - 	+ Benchmark failed with an exception[0m
+[RANK-PROCESS-0][[36m2025-06-08 13:50:27,410[0m][[34mtorchrun[0m][[32mINFO[0m] - 	+ Destroying torch.distributed process group[0m
+[RANK-PROCESS-0][[36m2025-06-08 13:50:27,411[0m][[34mtorchrun[0m][[32mINFO[0m] - 	+ Exiting rank process[0m
+[ISOLATED-PROCESS][[36m2025-06-08 13:50:52,404[0m][[34mtorchrun[0m][[32mINFO[0m] - 	+ Sending outputs to main process[0m
+[ISOLATED-PROCESS][[36m2025-06-08 13:50:52,404[0m][[34mtorchrun[0m][[32mINFO[0m] - 	+ Sending outputs directly (1540 bytes)[0m
+[ISOLATED-PROCESS][[36m2025-06-08 13:50:52,405[0m][[34mtorchrun[0m][[32mINFO[0m] - 	+ Exiting isolated process[0m
